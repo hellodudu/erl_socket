@@ -1,2 +1,2 @@
 # erl_socket
-a practise
+a erlang socket practise.

@@ -23,12 +23,5 @@ start_link() ->
 %% ===================================================================
 
 init([]) ->
-    {ok, { {one_for_one, 5, 10}, [{
-                    tag1,
-                    {erl_socket, start, []},
-                    permanent,
-                    10000,
-                    worker,
-                    [ erl_socket ]
-                }]} }.
+	{ok, {{one_for_one, 10, 10}, []}}.
 

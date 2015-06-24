@@ -1,74 +1,50 @@
 -module(erl_socket).
 -behaviour(gen_server).
--export([start/0, stop/0, get_down/0]).
--export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
+-behaviour(ranch_protocol).
+-export([init/1]).
+-export([init/4, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
+-export([
+        start_link/4
+    ]).
 
--include_lib("eunit/include/eunit.hrl").
+-define(TIMEOUT, 60000).
+-record(state, {socket, transport}).
 
-%% 默认服务名
--define(SERVER, ?MODULE).
+start_link(Ref, Socket, Transport, Opts) ->
+    proc_lib:start_link(?MODULE, init, [Ref, Socket, Transport, Opts]).
+         
+init([]) -> {ok, undefined}.
 
-%% 默认连接数
--define(DEF_Accept_Num, 1000).
+init(Ref, Socket, Transport, _Opts = []) ->
+    ok = proc_lib:init_ack({ok, self()}),
+    ok = ranch:accept_ack(Ref),
+    ok = Transport:setopts(Socket, [{active, once}]),
+    gen_server:enter_loop(?MODULE, [], #state{ socket=Socket, transport=Transport}).
 
-%% 默认tcp监听端口
--define(DEF_Port, 2345).
+handle_info({tcp, Socket, Data}, State=#state{socket=Socket, transport=Transport}) ->
+    Term = binary_to_list(Data),
+    io:format("recv data:~p~n", [Term]),
+	Transport:setopts(Socket, [{active, once}]),
+	Transport:send(Socket, Data),
+	{noreply, State, ?TIMEOUT};
+handle_info({tcp_closed, _Socket}, State) ->
+	{stop, normal, State};
+handle_info({tcp_error, _, Reason}, State) ->
+	{stop, Reason, State};
+handle_info(timeout, State) ->
+	{stop, normal, State};
+handle_info(_Info, State) ->
+	{stop, normal, State}.
 
-%% 测试
-start_test() -> {ok, start()}.
+handle_call(_Request, _From, State) ->
+	{reply, ok, State}.
 
-%% 外部接口
-start() -> gen_server:start_link({ local, ?SERVER }, ?MODULE, [], []).
-stop() -> gen_server:call(?MODULE, stop).
-get_down() -> gen_server:call(?MODULE, get_down).
+handle_cast(_Msg, State) ->
+	{noreply, State}.
 
-%% gen_server回调函数
-init([]) ->
-    case gen_tcp:listen(?DEF_Port, [binary, {packet, 4}, {reuseaddr, true}, {active, false}]) of
-        {ok, Listen} ->
-            start_servers(Listen, ?DEF_Accept_Num),
-            {ok, 1};
-        _Other ->
-            {error, 0}
-    end.
+terminate(_Reason, _State) ->
+	ok.
 
-handle_call(get_down, _From, Tab) ->
-    {stop, somehappened, get_down, Tab};
-handle_call(stop, _From, Tab) ->
-    {stop, normal, { stop, handle_call_stopped }, Tab}.
-
-handle_cast(_Msg, State) -> {noreply, State}.
-handle_info(_Info, State) -> {noreply, State}.
-terminate(Reason, _State) ->
-    io:format("socket server terminate, reason:~p~n", [Reason]).
-code_change(_OldVsn, State, _Extra) -> {ok, State}.
-
-
-%% 开启tcp服务
-start_servers(_Listen, 0) ->
-    io:format("spawn link complete!~n");
-start_servers(Listen, Accept_Num) ->
-    spawn(fun() -> start_server(Listen) end),
-    start_servers(Listen, Accept_Num - 1).
-
-start_server(Listen) -> 
-    case gen_tcp:accept(Listen) of
-        {ok, Socket} ->
-            loop(Socket);
-        _Other ->
-            return
-    end.
-
-loop(Socket) ->
-    inet:setopts(Socket, [{active, once}]),
-    receive
-        {tcp, Socket, Data} ->
-            Str = binary_to_term(Data),
-            io:format("Server Receive Data = ~p from socket = ~p~n", [Str, Socket]),
-            loop(Socket);
-        {tcp_closed, Socket} ->
-            io:format("Server Socket<~p> closed~n", [Socket]);
-        Any ->
-            io:format("Receive Any = ~p~n", [Any])
-    end.
+code_change(_OldVsn, State, _Extra) ->
+	{ok, State}.
 
