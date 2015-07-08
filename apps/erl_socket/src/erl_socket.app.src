@@ -1,0 +1,15 @@
+{application, erl_socket,
+ [
+  {description, "erl_socket"},
+  {vsn, "1.0.0"},
+  {modules, [erl_socket_app, erl_socket_sup, erl_socket]},
+  {registered, []},
+  {applications, [
+                  kernel,
+                  stdlib,
+                  ranch,
+                  lager
+                 ]},
+  {mod, {erl_socket_app, []}},
+  {env, []}
+ ]}.

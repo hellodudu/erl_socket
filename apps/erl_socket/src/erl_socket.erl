@@ -11,11 +11,17 @@
 -record(state, {socket, transport}).
 
 start_link(Ref, Socket, Transport, Opts) ->
+    lager:error( "lager start_link"),
     proc_lib:start_link(?MODULE, init, [Ref, Socket, Transport, Opts]).
          
-init([]) -> {ok, undefined}.
+init([]) -> 
+    lager:error( "lager erl_socket init/1!"),
+    io:format("erl_socket init/1\n"),
+    {ok, undefined}.
 
 init(Ref, Socket, Transport, _Opts = []) ->
+    lager:error( "lager erl_socket init/4!"),
+    io:format("erl_socket init/4\n"),
     ok = proc_lib:init_ack({ok, self()}),
     ok = ranch:accept_ack(Ref),
     ok = Transport:setopts(Socket, [{active, once}]),
